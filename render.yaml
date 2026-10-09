@@ -1,0 +1,16 @@
+# Blueprint de Render para CD (despliegue continuo desde main).
+# En el dashboard de Render: New > Blueprint > conectar repo Procesos-2627.
+# Cada merge a main redespliega automáticamente (Auto-Deploy).
+services:
+  - type: web
+    name: procesos-2627
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 10000

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Procesos-2627 (PBI-1)</title>
+</head>
+<body>
+  <main id="app">
+    <h1>Procesos-2627</h1>
+    <p>Esqueleto PBI-1: backend sirve a este frontend (mismo origen).</p>
+    <p>Estado del servidor: <strong id="estado">cargando…</strong></p>
+  </main>
+  <!-- Orden importante: com (comunicación) antes que app (GUI+controlador) -->
+  <script src="./com.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
