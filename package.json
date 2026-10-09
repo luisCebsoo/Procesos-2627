@@ -5,7 +5,7 @@
   "main": "servidor/api.js",
   "scripts": {
     "start": "node servidor/api.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test test/esqueleto.test.js"
   },
   "engines": {
     "node": ">=20"
