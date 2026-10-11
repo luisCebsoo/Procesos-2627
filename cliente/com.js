@@ -25,6 +25,9 @@ const Com = {
     });
     const datos = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (res.status === 401 && conAuth) {
+        this.limpiarSesion(); // token muerto: no insistir tras F5
+      }
       throw new Error(datos.error || ("fallo " + res.status));
     }
     return datos;
@@ -42,6 +45,25 @@ const Com = {
     const sesion = await this.pedir("POST", "/api/auth/login", { email, password });
     localStorage.setItem(this.CLAVE_SESION, JSON.stringify(sesion));
     return sesion;
+  },
+
+  // Revalida la sesión guardada contra el servidor (F5).
+  async me() {
+    const usuario = await this.pedir("GET", "/api/auth/me", undefined, true);
+    const sesion = this.leerSesion() || {};
+    sesion.usuario = usuario;
+    localStorage.setItem(this.CLAVE_SESION, JSON.stringify(sesion));
+    return usuario;
+  },
+
+  // Cierre de sesión: invalida en servidor y limpia en cliente.
+  async logout() {
+    try {
+      await this.pedir("POST", "/api/auth/logout", undefined, true);
+    } finally {
+      this.limpiarSesion();
+    }
+    return { ok: true };
   },
 
   leerSesion() {

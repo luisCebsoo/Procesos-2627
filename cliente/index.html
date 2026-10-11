@@ -10,8 +10,11 @@
     <h1>Procesos-2627</h1>
     <p>Estado del servidor: <strong id="estado">cargando…</strong></p>
     <p>Sesión: <strong id="sesion">sin sesión</strong></p>
+    <section id="zona-sesion" hidden>
+      <button id="btn-logout" type="button">Cerrar sesión</button>
+    </section>
 
-    <section>
+    <section id="zona-registro">
       <h2>Registro local</h2>
       <form id="form-registro">
         <input id="reg-email" type="email" placeholder="email" required />
@@ -22,7 +25,7 @@
       <p id="reg-msg"></p>
     </section>
 
-    <section>
+    <section id="zona-login">
       <h2>Login local</h2>
       <form id="form-login">
         <input id="log-email" type="email" placeholder="email" required />

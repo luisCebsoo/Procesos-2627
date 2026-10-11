@@ -8,7 +8,15 @@ SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD 
 | `POST` | `/api/auth/registro` `{ email, password, nombre? }` | `201` creado (pendiente, sin token) · `400` email/contraseña inválidos · `409` duplicado · `403` cuenta eliminada |
 | `POST` | `/api/auth/login` `{ email, password }` | `200` `{ token, usuario }` · `401` credenciales inválidas · `403` pendiente/eliminada |
 
-Reglas: contraseña mínimo 8 con hash **bcrypt** (`bcryptjs`, coste `BCRYPT_COST`, 10 por defecto); el hash jamás sale en respuestas; el recién registrado es `pendiente` y no entra hasta `activo` (PBI-7); login no distingue inexistente de password mal (no enumera); sesión = token `randomUUID`→email en memoria, guardado en `localStorage` y reenviado como `Bearer` (persistencia tras F5, logout e invalidación: PBI-4).
+Reglas: contraseña mínimo 8 con hash **bcrypt** (`bcryptjs`, coste `BCRYPT_COST`, 10 por defecto); el hash jamás sale en respuestas; el recién registrado es `pendiente` y no entra hasta `activo` (PBI-7); login no distingue inexistente de password mal (no enumera).
+
+## Sesión y rutas protegidas (PBI-4)
+| Método | Ruta | Respuestas |
+|---|---|---|
+| `GET` | `/api/auth/me` (protegida) | `200` perfil · `401` sin token/token muerto |
+| `POST` | `/api/auth/logout` (protegida) | `200` `{ ok: true }` · `401` sin token |
+
+Flujo: el login entrega token `randomUUID`→email (memoria servidor + `localStorage` cliente, reenviado como `Bearer`). Tras F5, el cliente revalida con `GET /me`; si el token murió (logout), el servidor da 401 y el cliente limpia la sesión. El middleware `requerirAuth` protege `GET /api/users`, `GET /:email/active`, `DELETE /:email`, `/me` y `/logout`: sin `Bearer` válido, 401. (`POST /api/users` y `/api/auth/*` públicas siguen abiertas; el reparto admin/usuario llega en PBI-6.)
 
 ## API de usuarios (PBI-2)
 | Método | Ruta | Respuestas |
@@ -44,7 +52,7 @@ npm start
 ```sh
 npm test
 ```
-PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` (felices + error: duplicado, email inválido, inexistente, realta tras borrado) y 5 de endpoints `/api/users`. PBI-3 añade 7 de registro/login (hash, pendiente, sesión, no-enumeración) y 3 de `/api/auth/*`. Total: 27 tests.
+PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` (felices + error: duplicado, email inválido, inexistente, realta tras borrado) y 6 de endpoints `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login (hash, pendiente, sesión, no-enumeración) y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). Total: 34 tests.
 
 ## Variables de entorno
 | Nombre | Uso |

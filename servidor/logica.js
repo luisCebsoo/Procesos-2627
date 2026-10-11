@@ -113,6 +113,40 @@ class Logica {
   }
 
   /**
+   * Revalida la sesión actual (PBI-4: persistencia tras F5).
+   * Devuelve el perfil del usuario autenticado si el token es válido.
+   */
+  obtenerSesion(token) {
+    if (!token || typeof token !== "string") {
+      throw fallo("CREDENCIALES", "sesión inválida o token ausente");
+    }
+    const email = this.datos.buscarSesion(token);
+    if (!email) {
+      throw fallo("CREDENCIALES", "sesión inválida o expirada");
+    }
+    if (this.datos.fueEliminado(email)) {
+      this.datos.eliminarSesion(token);
+      throw fallo("ELIMINADO", "cuenta eliminada");
+    }
+    const u = this.datos.buscarPorEmail(email);
+    if (!u) {
+      this.datos.eliminarSesion(token);
+      throw fallo("CREDENCIALES", "usuario no encontrado");
+    }
+    return { token, usuario: this.vista(u) };
+  }
+
+  /**
+   * Cierre de sesión (PBI-4): invalida el token en el servidor.
+   */
+  logout(token) {
+    if (token) {
+      this.datos.eliminarSesion(token);
+    }
+    return { ok: true };
+  }
+
+  /**
    * Listado: solo expone email, rol y estado (nunca hash ni internos).
    */
   listar() {
