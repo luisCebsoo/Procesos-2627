@@ -15,8 +15,10 @@ const Logica = require("./logica");
 // Errores de dominio (logica.js) -> HTTP. Solo transporte.
 const ESTADO_POR_CODIGO = {
   VALIDACION: 400,
-  DUPLICADO: 409,
+  CREDENCIALES: 401,
+  PENDIENTE: 403,
   ELIMINADO: 403,
+  DUPLICADO: 409,
   NO_ENCONTRADO: 404,
 };
 
@@ -80,7 +82,33 @@ function createApp(logica) {
     }
   });
 
-  // Rutas /api desconocidas -> 404 JSON (sin romper estáticos).
+  // Registro local (PBI-3): POST /api/auth/registro { email, password, nombre? }
+  // -> 201 (pendiente, sin token) | 400 | 409 | 403
+  app.post("/api/auth/registro", (req, res) => {
+    try {
+      const cuerpo = req.body || {};
+      const creado = logica.registrar(cuerpo.email, cuerpo.password, { nombre: cuerpo.nombre });
+      log("info", "registro usuario", { email: creado.email });
+      res.status(201).json(creado);
+    } catch (err) {
+      enviarError(res, err);
+    }
+  });
+
+  // Login local (PBI-3): POST /api/auth/login { email, password }
+  // -> 200 { token, usuario } | 401 | 403
+  app.post("/api/auth/login", (req, res) => {
+    try {
+      const cuerpo = req.body || {};
+      const sesion = logica.login(cuerpo.email, cuerpo.password);
+      log("info", "login usuario", { email: sesion.usuario.email });
+      res.json(sesion);
+    } catch (err) {
+      enviarError(res, err);
+    }
+  });
+
+  // Rutas /api desconocidas -> 404 JSON (último: no tapa a las rutas reales).
   app.use("/api", (req, res) => {
     res.status(404).json({ error: "ruta no encontrada" });
   });
