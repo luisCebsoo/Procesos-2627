@@ -30,9 +30,31 @@ function enviarError(res, err) {
   res.status(estado).json({ error: err.code ? err.message : "error interno" });
 }
 
+function extraerToken(req) {
+  const authHeader = req.headers.authorization || "";
+  if (authHeader.startsWith("Bearer ")) {
+    return authHeader.substring(7).trim();
+  }
+  return null;
+}
+
 function createApp(logica) {
   const app = express();
   app.use(express.json());
+
+  // Middleware de autenticación para rutas privadas
+  const requerirAuth = (req, res, next) => {
+    try {
+      const token = extraerToken(req);
+      const sesion = logica.obtenerSesion(token);
+      req.token = token;
+      req.sesion = sesion;
+      req.usuario = sesion.usuario;
+      next();
+    } catch (err) {
+      enviarError(res, err);
+    }
+  };
 
   // Frontend servido por el propio backend (mismo origen).
   const clienteDir = path.join(__dirname, "..", "cliente");
@@ -49,34 +71,6 @@ function createApp(logica) {
       const creado = logica.alta(req.body && req.body.email, { nombre: req.body && req.body.nombre });
       log("info", "alta usuario", { email: creado.email });
       res.status(201).json(creado);
-    } catch (err) {
-      enviarError(res, err);
-    }
-  });
-
-  // Listado (email, rol, estado) -> 200
-  // (Restricción a admin con sesiones: PBI-6.)
-  app.get("/api/users", (req, res) => {
-    res.json(logica.listar());
-  });
-
-  // ¿Activo? -> 200 { email, active } | 404
-  app.get("/api/users/:email/active", (req, res) => {
-    try {
-      const email = logica.normalizarEmail(req.params.email);
-      res.json({ email, active: logica.isActive(email) });
-    } catch (err) {
-      enviarError(res, err);
-    }
-  });
-
-  // Borrado -> 200 | 404 (reparto de permisos: PBI-6 con sesiones.)
-  app.delete("/api/users/:email", (req, res) => {
-    try {
-      const email = logica.normalizarEmail(req.params.email);
-      const resultado = logica.eliminar(email);
-      log("info", "borrado usuario", { email });
-      res.json(resultado);
     } catch (err) {
       enviarError(res, err);
     }
@@ -103,6 +97,45 @@ function createApp(logica) {
       const sesion = logica.login(cuerpo.email, cuerpo.password);
       log("info", "login usuario", { email: sesion.usuario.email });
       res.json(sesion);
+    } catch (err) {
+      enviarError(res, err);
+    }
+  });
+
+  // Revalidación de sesión (PBI-4): GET /api/auth/me (protegido por token)
+  // -> 200 usuario | 401
+  app.get("/api/auth/me", requerirAuth, (req, res) => {
+    res.json(req.usuario);
+  });
+
+  // Logout (PBI-4): POST /api/auth/logout (protegido por token)
+  // -> 200 { ok: true } | 401
+  app.post("/api/auth/logout", requerirAuth, (req, res) => {
+    logica.logout(req.token);
+    log("info", "logout usuario", { email: req.usuario.email });
+    res.json({ ok: true });
+  });
+
+  // Rutas de administración / consulta protegidas (PBI-4 / PBI-6)
+  app.get("/api/users", requerirAuth, (req, res) => {
+    res.json(logica.listar());
+  });
+
+  app.get("/api/users/:email/active", requerirAuth, (req, res) => {
+    try {
+      const email = logica.normalizarEmail(req.params.email);
+      res.json({ email, active: logica.isActive(email) });
+    } catch (err) {
+      enviarError(res, err);
+    }
+  });
+
+  app.delete("/api/users/:email", requerirAuth, (req, res) => {
+    try {
+      const email = logica.normalizarEmail(req.params.email);
+      const resultado = logica.eliminar(email);
+      log("info", "borrado usuario", { email });
+      res.json(resultado);
     } catch (err) {
       enviarError(res, err);
     }
