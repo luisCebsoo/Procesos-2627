@@ -11,6 +11,8 @@ class Datos {
     this.usuarios = new Map();
     // Tumbas: emails eliminados que no pueden volver a entrar.
     this.eliminados = new Set();
+    // Sesiones: token -> email (PBI-3; expira/invalida en PBI-4).
+    this.sesiones = new Map();
   }
 
   guardarUsuario(usuario) {
@@ -35,6 +37,18 @@ class Datos {
 
   fueEliminado(email) {
     return this.eliminados.has(email);
+  }
+
+  guardarSesion(token, email) {
+    this.sesiones.set(token, email);
+  }
+
+  buscarSesion(token) {
+    return this.sesiones.get(token) || null;
+  }
+
+  eliminarSesion(token) {
+    return this.sesiones.delete(token);
   }
 }
 

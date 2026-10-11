@@ -3,13 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Procesos-2627 (PBI-1)</title>
+  <title>Procesos-2627 (PBI-3)</title>
 </head>
 <body>
   <main id="app">
     <h1>Procesos-2627</h1>
-    <p>Esqueleto PBI-1: backend sirve a este frontend (mismo origen).</p>
     <p>Estado del servidor: <strong id="estado">cargando…</strong></p>
+    <p>Sesión: <strong id="sesion">sin sesión</strong></p>
+
+    <section>
+      <h2>Registro local</h2>
+      <form id="form-registro">
+        <input id="reg-email" type="email" placeholder="email" required />
+        <input id="reg-nombre" type="text" placeholder="nombre (opcional)" />
+        <input id="reg-pass" type="password" placeholder="contraseña (mín. 8)" required minlength="8" />
+        <button type="submit">Registrarse</button>
+      </form>
+      <p id="reg-msg"></p>
+    </section>
+
+    <section>
+      <h2>Login local</h2>
+      <form id="form-login">
+        <input id="log-email" type="email" placeholder="email" required />
+        <input id="log-pass" type="password" placeholder="contraseña" required />
+        <button type="submit">Entrar</button>
+      </form>
+      <p id="log-msg"></p>
+    </section>
   </main>
   <!-- Orden importante: com (comunicación) antes que app (GUI+controlador) -->
   <script src="./com.js"></script>

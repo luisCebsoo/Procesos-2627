@@ -5,12 +5,13 @@
   "main": "servidor/api.js",
   "scripts": {
     "start": "node servidor/api.js",
-    "test": "node --test test/esqueleto.test.js test/logica.test.js test/usuarios-api.test.js"
+    "test": "node --test test/esqueleto.test.js test/logica.test.js test/usuarios-api.test.js test/auth.test.js test/auth-api.test.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2"
   },

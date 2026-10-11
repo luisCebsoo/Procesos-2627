@@ -1,17 +1,24 @@
 /**
- * Capa de lógica de negocio (PBI-2: gestión básica de usuarios).
+ * Capa de lógica de negocio (PBI-3: registro y login locales).
  *
  * Frontera: solo conoce a Datos (inyectado por constructor).
  * NUNCA importa de api.js. Todas las reglas viven aquí; api.js
  * solo traduce los errores de dominio (err.code) a HTTP.
  *
- * Alcance PBI-2: alta, listado, estado activo y eliminación.
- * Sin contraseñas (PBI-3, con hash) ni sesiones/roles (Hito 2/3).
+ * Seguridad: contraseñas solo con bcrypt (hash irreversible),
+ * jamás en plano ni reversibles. El hash nunca sale en vistas.
+ * Sesiones: token aleatorio (randomUUID) -> email, en memoria.
+ * (Persistencia tras F5, logout e invalidación: PBI-4.)
  *
  * Códigos de error de dominio:
- *   VALIDACION | DUPLICADO | ELIMINADO | NO_ENCONTRADO
+ *   VALIDACION | DUPLICADO | ELIMINADO | NO_ENCONTRADO |
+ *   CREDENCIALES | PENDIENTE
  */
+const bcrypt = require("bcryptjs");
+const { randomUUID } = require("crypto");
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD = 8;
 
 function fallo(codigo, mensaje) {
   const err = new Error(mensaje);
@@ -22,12 +29,15 @@ function fallo(codigo, mensaje) {
 class Logica {
   /**
    * @param {import('./datos')} datos capa de persistencia
+   * @param {{ costeHash?: number }} opts (tests usan coste bajo)
    */
-  constructor(datos) {
+  constructor(datos, opts = {}) {
     if (!datos) {
       throw new Error("Logica requiere una instancia de Datos");
     }
     this.datos = datos;
+    this.costeHash =
+      Number(opts.costeHash) || Number(process.env.BCRYPT_COST) || 10;
   }
 
   /**
@@ -42,23 +52,15 @@ class Logica {
   }
 
   /**
-   * Alta: crea la cuenta en estado "pendiente" con rol "usuario".
-   * (La activación llega en PBI-7; el login exigirá "activo" en PBI-3.)
+   * Alta base (PBI-2): identidad sin credencial. El login la rechaza
+   * hasta que se registre contraseña (o la active PBI-7 + registro).
    */
   alta(email, opts = {}) {
     const normalizado = this.normalizarEmail(email);
-    if (!EMAIL_RE.test(normalizado)) {
-      throw fallo("VALIDACION", "email inválido");
-    }
-    if (this.datos.fueEliminado(normalizado)) {
-      throw fallo("ELIMINADO", "cuenta eliminada: no puede volver a entrar");
-    }
-    if (this.datos.buscarPorEmail(normalizado)) {
-      throw fallo("DUPLICADO", "email ya registrado");
-    }
+    this.comprobarDisponible(normalizado);
     const usuario = {
       email: normalizado,
-      nombre: typeof opts.nombre === "string" && opts.nombre.trim() ? opts.nombre.trim() : null,
+      nombre: this.limpiarNombre(opts.nombre),
       rol: "usuario",
       estado: "pendiente",
       creadoEn: new Date().toISOString(),
@@ -68,7 +70,50 @@ class Logica {
   }
 
   /**
-   * Listado: solo expone email, rol y estado (nunca datos internos).
+   * Registro local (PBI-3): alta + contraseña con hash bcrypt.
+   * Crea la cuenta en "pendiente": NO puede loguearse hasta activar.
+   */
+  registrar(email, password, opts = {}) {
+    const normalizado = this.normalizarEmail(email);
+    this.comprobarDisponible(normalizado);
+    if (typeof password !== "string" || password.length < MIN_PASSWORD) {
+      throw fallo("VALIDACION", `la contraseña necesita ${MIN_PASSWORD} caracteres mínimo`);
+    }
+    const usuario = {
+      email: normalizado,
+      nombre: this.limpiarNombre(opts.nombre),
+      hash: bcrypt.hashSync(password, this.costeHash),
+      rol: "usuario",
+      estado: "pendiente",
+      creadoEn: new Date().toISOString(),
+    };
+    this.datos.guardarUsuario(usuario);
+    return this.vista(usuario);
+  }
+
+  /**
+   * Login local (PBI-3): valida credenciales y genera la sesión.
+   * No distingue "no existe" de "password mal" (no enumera usuarios).
+   */
+  login(email, password) {
+    const normalizado = this.normalizarEmail(email);
+    if (this.datos.fueEliminado(normalizado)) {
+      throw fallo("ELIMINADO", "cuenta eliminada: no puede volver a entrar");
+    }
+    const u = this.datos.buscarPorEmail(normalizado);
+    if (!u || !u.hash || !bcrypt.compareSync(String(password || ""), u.hash)) {
+      throw fallo("CREDENCIALES", "credenciales inválidas");
+    }
+    if (u.estado !== "activo") {
+      throw fallo("PENDIENTE", "cuenta pendiente de activación");
+    }
+    const token = randomUUID();
+    this.datos.guardarSesion(token, normalizado);
+    return { token, usuario: this.vista(u) };
+  }
+
+  /**
+   * Listado: solo expone email, rol y estado (nunca hash ni internos).
    */
   listar() {
     return this.datos.listarUsuarios().map((u) => ({
@@ -116,6 +161,22 @@ class Logica {
     this.datos.eliminarUsuario(normalizado);
     this.datos.marcarEliminado(normalizado);
     return { email: normalizado, eliminado: true };
+  }
+
+  comprobarDisponible(normalizado) {
+    if (!EMAIL_RE.test(normalizado)) {
+      throw fallo("VALIDACION", "email inválido");
+    }
+    if (this.datos.fueEliminado(normalizado)) {
+      throw fallo("ELIMINADO", "cuenta eliminada: no puede volver a entrar");
+    }
+    if (this.datos.buscarPorEmail(normalizado)) {
+      throw fallo("DUPLICADO", "email ya registrado");
+    }
+  }
+
+  limpiarNombre(nombre) {
+    return typeof nombre === "string" && nombre.trim() ? nombre.trim() : null;
   }
 
   vista(u) {
