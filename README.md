@@ -1,6 +1,14 @@
 # Procesos-2627
 
-SaaS base (Hito 1). PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios (alta, listado, estado, eliminación) en memoria.
+SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios en memoria. PBI-3 (Hito 2): registro y login locales con hash y sesión.
+
+## Auth local (PBI-3)
+| Método | Ruta | Respuestas |
+|---|---|---|
+| `POST` | `/api/auth/registro` `{ email, password, nombre? }` | `201` creado (pendiente, sin token) · `400` email/contraseña inválidos · `409` duplicado · `403` cuenta eliminada |
+| `POST` | `/api/auth/login` `{ email, password }` | `200` `{ token, usuario }` · `401` credenciales inválidas · `403` pendiente/eliminada |
+
+Reglas: contraseña mínimo 8 con hash **bcrypt** (`bcryptjs`, coste `BCRYPT_COST`, 10 por defecto); el hash jamás sale en respuestas; el recién registrado es `pendiente` y no entra hasta `activo` (PBI-7); login no distingue inexistente de password mal (no enumera); sesión = token `randomUUID`→email en memoria, guardado en `localStorage` y reenviado como `Bearer` (persistencia tras F5, logout e invalidación: PBI-4).
 
 ## API de usuarios (PBI-2)
 | Método | Ruta | Respuestas |
@@ -16,6 +24,7 @@ Alcance honesto: sin contraseñas (llegan con hash en PBI-3, nunca en plano), si
 - **Node 20 + Express 4**: backend mínimo que sirve API REST y frontend estático desde el mismo origen (exigido por la arquitectura).
 - **JS vanilla en cliente (com.js + app.js + index.html)**: sin bundler para mantener visible la frontera GUI/controlador vs comunicación.
 - **node:test + assert (built-in)**: framework de tests sin dependencias extra; `npm test` corre todo con un solo comando.
+- **bcryptjs (bcrypt, coste 10)**: hash irreversible de contraseñas sin compilación nativa (seguro en CI y Render free).
 - **GitHub Actions**: CI que ejecuta los tests en cada PR y push a `main` (ver `.github/workflows/ci.yml`).
 - **Render (plan free, `render.yaml`)**: CD con Auto-Deploy desde `main` a URL pública.
 
@@ -35,17 +44,18 @@ npm start
 ```sh
 npm test
 ```
-PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` (felices + error: duplicado, email inválido, inexistente, realta tras borrado) y 5 de endpoints `/api/users`. Total: 17 tests.
+PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` (felices + error: duplicado, email inválido, inexistente, realta tras borrado) y 5 de endpoints `/api/users`. PBI-3 añade 7 de registro/login (hash, pendiente, sesión, no-enumeración) y 3 de `/api/auth/*`. Total: 27 tests.
 
 ## Variables de entorno
 | Nombre | Uso |
 |---|---|
 | `PORT` | Puerto de escucha (en Render lo inyecta la plataforma) |
+| `BCRYPT_COST` | Coste del hash bcrypt (10 por defecto; tests usan 4) |
 
 Ver `.env.example` (solo nombres, nunca valores secretos).
 
 ## Acceso como admin
-Pendiente de PBI-6 (mecanismo seed/env/script). Desde PBI-2 ya existen usuarios con `rol` (`usuario`) y `estado` (`pendiente`/`activo`), pero sin login todavía.
+Pendiente de PBI-6 (mecanismo seed/env/script). Desde PBI-3 hay registro/login locales: el alta es `pendiente` y solo entra al estar `activo`.
 
 ## CI/CD
 - **CI**: workflow `CI` en `.github/workflows/ci.yml` (push a `main` + PRs hacia `main`): `npm ci` + `npm test`. No mergear en rojo.
