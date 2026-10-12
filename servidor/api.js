@@ -11,6 +11,7 @@ const express = require("express");
 
 const Datos = require("./datos");
 const Logica = require("./logica");
+const { crearCorreo } = require("./correo");
 
 // Errores de dominio (logica.js) -> HTTP. Solo transporte.
 const ESTADO_POR_CODIGO = {
@@ -39,9 +40,30 @@ function extraerToken(req) {
   return null;
 }
 
-function createApp(logica) {
+function createApp(logica, opts = {}) {
   const app = express();
   app.use(express.json());
+
+  // PBI-7: correo inyectable (tests pasan un stub; por defecto, real o
+  // simulado según haya SMTP en el entorno). Base de los enlaces: APP_URL.
+  const correo = opts.correo || crearCorreo();
+  const baseUrl = (opts.baseUrl || process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+
+  // Envía el enlace único sin tumbar el registro si el correo falla.
+  function enviarVerificacion(email) {
+    const { token } = logica.solicitarVerificacion(email);
+    const enlace = `${baseUrl}/verificar.html?token=${token}`;
+    return correo
+      .enviarEnlace(email, enlace)
+      .then(() => {
+        log("info", "enlace de verificación generado", { email });
+        return { email, enlace };
+      })
+      .catch((err) => {
+        log("error", "no se pudo enviar el email", { email, detalle: err.message });
+        return { email, enlace };
+      });
+  }
 
   // Middleware de autenticación para rutas privadas
   const requerirAuth = (req, res, next) => {
@@ -87,14 +109,37 @@ function createApp(logica) {
     }
   });
 
-  // Registro local (PBI-3): POST /api/auth/registro { email, password, nombre? }
-  // -> 201 (pendiente, sin token) | 400 | 409 | 403
+  // Registro local (PBI-3 + PBI-7): POST /api/auth/registro { email, password, nombre? }
+  // -> 201 (pendiente, sin token) + envío del enlace | 400 | 409 | 403
   app.post("/api/auth/registro", (req, res) => {
     try {
       const cuerpo = req.body || {};
       const creado = logica.registrar(cuerpo.email, cuerpo.password, { nombre: cuerpo.nombre });
       log("info", "registro usuario", { email: creado.email });
-      res.status(201).json(creado);
+      enviarVerificacion(creado.email).then(() => res.status(201).json(creado));
+    } catch (err) {
+      enviarError(res, err);
+    }
+  });
+
+  // Reenvío del enlace (PBI-7): POST /api/auth/reenviar { email }
+  // -> 200 | 400 (ya activa o inexistente)
+  app.post("/api/auth/reenviar", (req, res) => {
+    try {
+      const email = logica.normalizarEmail((req.body || {}).email);
+      enviarVerificacion(email).then(() => res.json({ email, reenviado: true }));
+    } catch (err) {
+      enviarError(res, err);
+    }
+  });
+
+  // Canje del enlace (PBI-7): GET /api/auth/verificar/:token
+  // -> 200 (ahora activo) | 404 (falso, usado o caducado)
+  app.get("/api/auth/verificar/:token", (req, res) => {
+    try {
+      const usuario = logica.verificarCuenta(req.params.token);
+      log("info", "cuenta activada por email", { email: usuario.email });
+      res.json(usuario);
     } catch (err) {
       enviarError(res, err);
     }

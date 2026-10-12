@@ -256,11 +256,51 @@ class Logica {
   }
 
   /**
-   * Activación pendiente -> activo. La usará el enlace de PBI-7.
+   * Activación pendiente -> activo (uso interno y seed de admin).
    */
   activar(email) {
     const normalizado = this.normalizarEmail(email);
     const u = this.datos.buscarPorEmail(normalizado);
+    if (!u) {
+      throw fallo("NO_ENCONTRADO", "usuario no encontrado");
+    }
+    u.estado = "activo";
+    this.datos.guardarUsuario(u);
+    return this.vista(u);
+  }
+
+  /**
+   * Genera el token único de verificación (PBI-7) para una cuenta
+   * pendiente. La API lo convierte en enlace y lo envía por email.
+   */
+  solicitarVerificacion(email) {
+    const normalizado = this.normalizarEmail(email);
+    const u = this.datos.buscarPorEmail(normalizado);
+    if (!u) {
+      throw fallo("NO_ENCONTRADO", "usuario no encontrado");
+    }
+    if (u.estado === "activo") {
+      throw fallo("VALIDACION", "la cuenta ya está activa");
+    }
+    const token = randomUUID();
+    this.datos.guardarVerificacion(token, normalizado);
+    return { email: normalizado, token };
+  }
+
+  /**
+   * Canjea el enlace de activación (PBI-7): el token es de un solo
+   * uso (se consume antes de activar) y lo falso/caducado da 404.
+   */
+  verificarCuenta(token) {
+    if (!token || typeof token !== "string") {
+      throw fallo("NO_ENCONTRADO", "enlace inválido o expirado");
+    }
+    const email = this.datos.buscarVerificacion(token);
+    if (!email) {
+      throw fallo("NO_ENCONTRADO", "enlace inválido o expirado");
+    }
+    this.datos.eliminarVerificacion(token);
+    const u = this.datos.buscarPorEmail(email);
     if (!u) {
       throw fallo("NO_ENCONTRADO", "usuario no encontrado");
     }

@@ -5,7 +5,7 @@
   "main": "servidor/api.js",
   "scripts": {
     "start": "node servidor/api.js",
-    "test": "node --test test/esqueleto.test.js test/logica.test.js test/usuarios-api.test.js test/auth.test.js test/auth-api.test.js test/sesion.test.js test/datos-mongodb.test.js test/roles.test.js test/roles-api.test.js"
+    "test": "node --test test/esqueleto.test.js test/logica.test.js test/usuarios-api.test.js test/auth.test.js test/auth-api.test.js test/sesion.test.js test/datos-mongodb.test.js test/roles.test.js test/roles-api.test.js test/verificacion.test.js test/verificacion-api.test.js"
   },
   "engines": {
     "node": ">=20"
@@ -14,7 +14,8 @@
     "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "mongodb": "^7.7.0"
+    "mongodb": "^7.7.0",
+    "nodemailer": "^10.1.0"
   },
   "license": "UNLICENSED"
 }
