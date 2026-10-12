@@ -83,6 +83,11 @@ const Com = {
     return this.pedir("DELETE", "/api/users/" + encodeURIComponent(email), undefined, true);
   },
 
+  // Canje del enlace de activación (PBI-7, página pública).
+  verificar(token) {
+    return this.pedir("GET", "/api/auth/verificar/" + encodeURIComponent(token));
+  },
+
   limpiarSesion() {
     localStorage.removeItem(this.CLAVE_SESION);
   },
