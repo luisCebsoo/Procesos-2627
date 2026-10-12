@@ -66,10 +66,19 @@
     }
   }
 
-  // Al cargar (también tras F5): si hay token guardado, se revalida
-  // en el servidor; si está muerto, se limpia y se muestra "sin sesión".
+  // Al cargar (también tras F5): primero recoge el token si venimos
+  // del callback OAuth (?token=), limpia la URL y luego revalida
+  // la sesión guardada como siempre.
   async function inicializar() {
     await pintarEstado();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oauth_error")) {
+      $("log-msg").textContent = "ERROR con GitHub: " + params.get("oauth_error");
+    }
+    if (params.get("token")) {
+      Com.guardarSesion({ token: params.get("token"), usuario: { email: params.get("email") || "", rol: "usuario", estado: "activo" } });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     if (Com.leerSesion()) {
       try {
         await Com.me();

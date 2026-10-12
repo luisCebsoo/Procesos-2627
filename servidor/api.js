@@ -12,6 +12,7 @@ const express = require("express");
 const Datos = require("./datos");
 const Logica = require("./logica");
 const { crearCorreo } = require("./correo");
+const { crearOAuth } = require("./oauth");
 
 // Errores de dominio (logica.js) -> HTTP. Solo transporte.
 const ESTADO_POR_CODIGO = {
@@ -48,6 +49,9 @@ function createApp(logica, opts = {}) {
   // simulado según haya SMTP en el entorno). Base de los enlaces: APP_URL.
   const correo = opts.correo || crearCorreo();
   const baseUrl = (opts.baseUrl || process.env.APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  // PBI-8: proveedor OAuth inyectable (tests pasan un stub; por defecto,
+  // GitHub real o 501 si faltan credenciales en el entorno).
+  const oauth = opts.oauth || crearOAuth();
 
   // Envía el enlace único sin tumbar el registro si el correo falla.
   function enviarVerificacion(email) {
@@ -156,6 +160,43 @@ function createApp(logica, opts = {}) {
     } catch (err) {
       enviarError(res, err);
     }
+  });
+
+  // Inicio OAuth (PBI-8): redirige a GitHub para autorizar.
+  // -> 302 github.com | 501 sin credenciales
+  app.get("/api/auth/oauth/github", (req, res) => {
+    if (!oauth.configurado) {
+      log("warn", "oauth sin configurar", {});
+      res.status(501).json({ error: "login externo no configurado" });
+      return;
+    }
+    res.redirect(oauth.urlAutorizacion());
+  });
+
+  // Callback OAuth (PBI-8): GitHub devuelve ?code=. Se canjea por el
+  // perfil, se entra directo como activo y se redirige con el token.
+  // -> 302 /?token=... | 302 /?oauth_error=... | 501 sin credenciales
+  app.get("/api/auth/oauth/github/callback", (req, res) => {
+    if (!oauth.configurado) {
+      res.status(501).json({ error: "login externo no configurado" });
+      return;
+    }
+    oauth
+      .intercambiarCodigo(req.query.code)
+      .then(({ email, nombre }) => {
+        const sesion = logica.loginExterno(email, nombre, "github");
+        log("info", "login externo", { email: sesion.usuario.email, proveedor: "github" });
+        const destino = new URL(baseUrl + "/");
+        destino.searchParams.set("token", sesion.token);
+        destino.searchParams.set("email", sesion.usuario.email);
+        res.redirect(destino.toString());
+      })
+      .catch((err) => {
+        log("warn", "oauth fallido", { detalle: err.message });
+        const destino = new URL(baseUrl + "/");
+        destino.searchParams.set("oauth_error", err.code || "codigo_invalido");
+        res.redirect(destino.toString());
+      });
   });
 
   // Revalidación de sesión (PBI-4): GET /api/auth/me (protegido por token)
