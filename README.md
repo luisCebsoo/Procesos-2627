@@ -1,6 +1,15 @@
 # Procesos-2627
 
-SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios en memoria. PBI-3 (Hito 2): registro y login locales con hash y sesión.
+SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios en memoria. PBI-3 (Hito 2): registro y login locales con hash y sesión. PBI-4: sesión persistente, logout y rutas protegidas. PBI-5 (Hito 3): persistencia MongoDB y secretos fuera del código.
+
+## Persistencia MongoDB (PBI-5)
+`servidor/datos.js` mantiene su interfaz síncrona intacta (`logica.js` no cambió): lee siempre de caché en memoria y, si hay `MONGODB_URI`, refleja cada escritura en Mongo en diferido (colecciones `usuarios`, `eliminados`, `sesiones`; `upsert` por email/token). Al arrancar, `conectarDB()` hidrata la caché: los datos sobreviven al reinicio. Sin `MONGODB_URI` → modo memoria (tests y CI, sin red).
+```sh
+# Local con Mongo:  copia .env.example a .env y pon tu URI real (jamás commiteada)
+MONGODB_URI=mongodb://localhost:27017/procesos2627
+npm start
+# Render: Dashboard del servicio > Environment > añadir MONGODB_URI (Atlas) > redeploy
+```
 
 ## Auth local (PBI-3)
 | Método | Ruta | Respuestas |
@@ -52,13 +61,14 @@ npm start
 ```sh
 npm test
 ```
-PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` (felices + error: duplicado, email inválido, inexistente, realta tras borrado) y 6 de endpoints `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login (hash, pendiente, sesión, no-enumeración) y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). Total: 34 tests.
+PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). Total: 40 tests.
 
 ## Variables de entorno
 | Nombre | Uso |
 |---|---|
 | `PORT` | Puerto de escucha (en Render lo inyecta la plataforma) |
 | `BCRYPT_COST` | Coste del hash bcrypt (10 por defecto; tests usan 4) |
+| `MONGODB_URI` | URI de MongoDB. Vacía = modo memoria. En local va en `.env` (jamás commiteado); en Render, en Dashboard > Environment |
 
 Ver `.env.example` (solo nombres, nunca valores secretos).
 
