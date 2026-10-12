@@ -147,6 +147,42 @@ class Logica {
   }
 
   /**
+   * Login externo OAuth (PBI-8): el proveedor ya verificó el email,
+   * así que la cuenta nace (o queda) "activa" sin email de confirmación
+   * y genera una sesión válida directamente. Respeta tumbas y roles.
+   */
+  loginExterno(email, nombre, proveedor) {
+    const normalizado = this.normalizarEmail(email);
+    if (!EMAIL_RE.test(normalizado)) {
+      throw fallo("VALIDACION", "email inválido");
+    }
+    if (this.datos.fueEliminado(normalizado)) {
+      throw fallo("ELIMINADO", "cuenta eliminada: no puede volver a entrar");
+    }
+    let u = this.datos.buscarPorEmail(normalizado);
+    if (!u) {
+      u = {
+        email: normalizado,
+        nombre: typeof nombre === "string" && nombre.trim() ? nombre.trim() : null,
+        hash: null,
+        rol: "usuario",
+        estado: "activo",
+        proveedor: proveedor || null,
+        creadoEn: new Date().toISOString(),
+      };
+    } else {
+      u.estado = "activo";
+      if (!u.proveedor && proveedor) {
+        u.proveedor = proveedor;
+      }
+    }
+    this.datos.guardarUsuario(u);
+    const token = randomUUID();
+    this.datos.guardarSesion(token, normalizado);
+    return { token, usuario: this.vista(u) };
+  }
+
+  /**
    * Listado: solo expone email, rol y estado (nunca hash ni internos).
    * Sin solicitante (compat PBI-2). Con roles: usar listarComo().
    */
