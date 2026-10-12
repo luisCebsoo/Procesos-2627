@@ -33,11 +33,12 @@ async function llamar(base, metodo, ruta, cuerpo, token) {
   return { estado: res.status, cuerpo: await res.json() };
 }
 
-// Da de alta con credencial, activa y entra: devuelve token válido.
+// Da de alta con credencial, la asciende a admin y entra: token admin.
+// (Desde PBI-6, listar/borrar a otros exige rol admin en servidor.)
 async function entrar(base, logica, email) {
   const reg = await llamar(base, "POST", "/api/auth/registro", { email, password: "secreta123" });
   assert.equal(reg.estado, 201);
-  logica.activar(email);
+  logica.inicializarAdmin(email);
   const login = await llamar(base, "POST", "/api/auth/login", { email, password: "secreta123" });
   assert.equal(login.estado, 200);
   return login.cuerpo.token;
@@ -55,7 +56,7 @@ describe("PBI-2: endpoints /api/users", () => {
       assert.equal(lista.estado, 200);
       assert.deepEqual(lista.cuerpo, [
         { email: "ana@ejemplo.com", rol: "usuario", estado: "pendiente" },
-        { email: "admin@ejemplo.com", rol: "usuario", estado: "activo" },
+        { email: "admin@ejemplo.com", rol: "admin", estado: "activo" },
       ]);
     } finally {
       server.close();
@@ -97,7 +98,7 @@ describe("PBI-2: endpoints /api/users", () => {
       assert.equal(borrado.estado, 200);
       assert.deepEqual(borrado.cuerpo, { email: "a@b.com", eliminado: true });
       assert.deepEqual((await llamar(base, "GET", "/api/users", undefined, token)).cuerpo, [
-        { email: "admin@ejemplo.com", rol: "usuario", estado: "activo" },
+        { email: "admin@ejemplo.com", rol: "admin", estado: "activo" },
       ]);
       assert.equal((await llamar(base, "DELETE", "/api/users/a@b.com", undefined, token)).estado, 404);
     } finally {
