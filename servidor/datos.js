@@ -9,7 +9,7 @@
  * (Map/Set, síncronas). Si hay BBDD conectada (MONGODB_URI), cada
  * escritura además se refleja en Mongo en diferido (write-through:
  * nunca bloquea ni rompe a la lógica si Mongo falla). Al arrancar,
- * conectarDB() hidrata la caché desde las 3 colecciones.
+ * conectarDB() hidrata la caché desde las 4 colecciones.
  * Sin MONGODB_URI: modo memoria puro (tests, CI, desarrollo rápido).
  */
 const { MongoClient } = require("mongodb");
@@ -20,6 +20,8 @@ class Datos {
     this.usuarios = new Map();
     this.eliminados = new Set();
     this.sesiones = new Map();
+    // Verificaciones de email (PBI-7): token de un solo uso -> email.
+    this.verificaciones = new Map();
     // null = modo memoria (sin Mongo).
     this.db = null;
     this._client = null;
@@ -62,6 +64,9 @@ class Datos {
     }
     for (const s of await this.db.collection("sesiones").find({}).toArray()) {
       this.sesiones.set(s.token, s.email);
+    }
+    for (const v of await this.db.collection("verificaciones").find({}).toArray()) {
+      this.verificaciones.set(v.token, v.email);
     }
   }
 
@@ -135,6 +140,21 @@ class Datos {
   eliminarSesion(token) {
     const ok = this.sesiones.delete(token);
     this.borrarDe("sesiones", { token });
+    return ok;
+  }
+
+  guardarVerificacion(token, email) {
+    this.verificaciones.set(token, email);
+    this.persistir("verificaciones", { token }, { token, email });
+  }
+
+  buscarVerificacion(token) {
+    return this.verificaciones.get(token) || null;
+  }
+
+  eliminarVerificacion(token) {
+    const ok = this.verificaciones.delete(token);
+    this.borrarDe("verificaciones", { token });
     return ok;
   }
 }
