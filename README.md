@@ -1,6 +1,6 @@
 # Procesos-2627
 
-SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios en memoria. PBI-3 (Hito 2): registro y login locales con hash y sesión. PBI-4: sesión persistente, logout y rutas protegidas. PBI-5 (Hito 3): persistencia MongoDB y secretos fuera del código.
+SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios en memoria. PBI-3 (Hito 2): registro y login locales con hash y sesión. PBI-4: sesión persistente, logout y rutas protegidas. PBI-5 (Hito 3): persistencia MongoDB y secretos fuera del código. PBI-6: roles y administración (listar/consultar solo admin; borrado admin→cualquiera, usuario→solo sí mismo; seed del primer admin por entorno; logs).
 
 ## Persistencia MongoDB (PBI-5)
 `servidor/datos.js` mantiene su interfaz síncrona intacta (`logica.js` no cambió): lee siempre de caché en memoria y, si hay `MONGODB_URI`, refleja cada escritura en Mongo en diferido (colecciones `usuarios`, `eliminados`, `sesiones`; `upsert` por email/token). Al arrancar, `conectarDB()` hidrata la caché: los datos sobreviven al reinicio. Sin `MONGODB_URI` → modo memoria (tests y CI, sin red).
@@ -10,6 +10,19 @@ MONGODB_URI=mongodb://localhost:27017/procesos2627
 npm start
 # Render: Dashboard del servicio > Environment > añadir MONGODB_URI (Atlas) > redeploy
 ```
+
+## Roles y administración (PBI-6)
+Solo el `admin` puede listar (`GET /api/users`) y consultar activo (`GET /:email/active`): con sesión pero sin rol → `403`; sin sesión → `401`. Borrado: admin borra a cualquiera; usuario solo su propia cuenta (`403` en otro caso). Todo validado **en el servidor** (lógica + middleware `requerirAdmin` con lectura fresca del rol; el cliente solo muestra/oculta).
+```sh
+# Primer admin: al arrancar, si hay ADMIN_EMAIL se crea activo
+# (o se asciende si ya existe, conservando su contraseña).
+ADMIN_EMAIL=jefa@ejemplo.com
+ADMIN_PASSWORD=una-clave-larga-segura
+npm start
+# Render: las mismas variables en Dashboard > Environment. Las credenciales
+# reales de prueba se envían aparte, nunca en el repo.
+```
+Logs estructurados (una línea JSON) en arranques, altas, logins, logouts, borrados, seed de admin y denegaciones (`warn`).
 
 ## Auth local (PBI-3)
 | Método | Ruta | Respuestas |
@@ -35,7 +48,7 @@ Flujo: el login entrega token `randomUUID`→email (memoria servidor + `localSto
 | `GET` | `/api/users/:email/active` | `200` `{ email, active }` · `404` no existe |
 | `DELETE` | `/api/users/:email` | `200` `{ email, eliminado: true }` · `404` no existe |
 
-Alcance honesto: sin contraseñas (llegan con hash en PBI-3, nunca en plano), sin sesiones (PBI-3/4) y sin enforcement de roles en servidor (PBI-6: listar/`isActive` solo admin; borrado admin→cualquiera, usuario→solo sí mismo). El alta crea `pendiente`; `activar()` la usará el enlace de PBI-7; el eliminado no vuelve a entrar (tumba en memoria).
+Alcance honesto: sin contraseñas (llegaron con hash en PBI-3, nunca en plano) y sin sesiones (PBI-3/4). Desde PBI-6, listar/`isActive` solo admin y borrado admin→cualquiera, usuario→solo sí mismo, todo enforced en servidor. El alta crea `pendiente`; `activar()` la usará el enlace de PBI-7; el eliminado no vuelve a entrar.
 
 ## Tecnologías
 - **Node 20 + Express 4**: backend mínimo que sirve API REST y frontend estático desde el mismo origen (exigido por la arquitectura).
@@ -61,7 +74,7 @@ npm start
 ```sh
 npm test
 ```
-PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). Total: 40 tests.
+PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). PBI-6 añade 6 de roles en lógica y 3 de control de rol en endpoints. Total: 49 tests.
 
 ## Variables de entorno
 | Nombre | Uso |
@@ -69,11 +82,12 @@ PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logi
 | `PORT` | Puerto de escucha (en Render lo inyecta la plataforma) |
 | `BCRYPT_COST` | Coste del hash bcrypt (10 por defecto; tests usan 4) |
 | `MONGODB_URI` | URI de MongoDB. Vacía = modo memoria. En local va en `.env` (jamás commiteado); en Render, en Dashboard > Environment |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Seed del primer admin al arrancar (se crea activo o se asciende). Solo nombres en `.env.example`; valores reales aparte, nunca en el repo |
 
 Ver `.env.example` (solo nombres, nunca valores secretos).
 
 ## Acceso como admin
-Pendiente de PBI-6 (mecanismo seed/env/script). Desde PBI-3 hay registro/login locales: el alta es `pendiente` y solo entra al estar `activo`.
+Mecanismo seed por entorno (PBI-6, justificado: explícito, sin secretos en código, funciona igual en local y Render): define `ADMIN_EMAIL` (+ `ADMIN_PASSWORD` si aún no existe) y arranca. Desde PBI-3 hay registro/login locales: el alta es `pendiente` y solo entra al estar `activo`.
 
 ## CI/CD
 - **CI**: workflow `CI` en `.github/workflows/ci.yml` (push a `main` + PRs hacia `main`): `npm ci` + `npm test`. No mergear en rojo.
