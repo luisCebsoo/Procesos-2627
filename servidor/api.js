@@ -159,7 +159,18 @@ if (require.main === module) {
   const datos = new Datos();
   const logica = new Logica(datos);
   const app = createApp(logica);
-  app.listen(PORT, () => log("info", "servidor arrancado", { port: PORT }));
+  // PBI-5: la URI sale del entorno, nunca del código. Sin ella,
+  // modo memoria (útil en local/CI); con ella, MongoDB persistente.
+  datos
+    .conectarDB(process.env.MONGODB_URI)
+    .then((conectado) => {
+      log("info", "persistencia lista", { modo: conectado ? "mongodb" : "memoria" });
+      app.listen(PORT, () => log("info", "servidor arrancado", { port: PORT }));
+    })
+    .catch((err) => {
+      log("error", "no se pudo conectar a MongoDB", { detalle: err.message });
+      process.exit(1);
+    });
 }
 
 module.exports = { createApp };
