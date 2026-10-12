@@ -23,12 +23,47 @@
   function pintarSesion() {
     const sesion = Com.leerSesion();
     const dentro = !!(sesion && sesion.token);
+    const admin = dentro && sesion.usuario.rol === "admin";
     $("sesion").textContent = dentro
-      ? sesion.usuario.email + " (" + sesion.usuario.estado + ")"
+      ? sesion.usuario.email + " (" + sesion.usuario.rol + "/" + sesion.usuario.estado + ")"
       : "sin sesión";
     $("zona-sesion").hidden = !dentro;
     $("zona-registro").hidden = dentro;
     $("zona-login").hidden = dentro;
+    $("zona-admin").hidden = !admin;
+    $("zona-cuenta").hidden = !dentro;
+    if (admin) {
+      pintarUsuarios();
+    }
+  }
+
+  // Panel admin: pide la lista al servidor (él decide si tienes permiso).
+  async function pintarUsuarios() {
+    try {
+      const lista = await Com.listarUsuarios();
+      $("lista-usuarios").innerHTML = "";
+      for (const u of lista) {
+        const li = document.createElement("li");
+        li.textContent = u.email + " (" + u.rol + "/" + u.estado + ") ";
+        const btn = document.createElement("button");
+        btn.textContent = "Borrar";
+        btn.addEventListener("click", async () => {
+          try {
+            await Com.borrarUsuario(u.email);
+            $("admin-msg").textContent = "Borrado: " + u.email;
+          } catch (e) {
+            $("admin-msg").textContent = "ERROR: " + e.message;
+          }
+          pintarUsuarios();
+          pintarEstado();
+        });
+        li.appendChild(btn);
+        $("lista-usuarios").appendChild(li);
+      }
+      $("admin-msg").textContent = "";
+    } catch (e) {
+      $("admin-msg").textContent = "ERROR: " + e.message;
+    }
   }
 
   // Al cargar (también tras F5): si hay token guardado, se revalida
@@ -72,6 +107,24 @@
     await Com.logout();
     $("log-msg").textContent = "";
     pintarSesion();
+  });
+
+  // Borrar mi propia cuenta (permitido a cualquier usuario; el servidor
+  // impide borrar la de otro salvo admin).
+  $("btn-borrar-cuenta").addEventListener("click", async () => {
+    const sesion = Com.leerSesion();
+    if (!sesion) {
+      return;
+    }
+    try {
+      await Com.borrarUsuario(sesion.usuario.email);
+      Com.limpiarSesion();
+      $("cuenta-msg").textContent = "Cuenta eliminada.";
+    } catch (e) {
+      $("cuenta-msg").textContent = "ERROR: " + e.message;
+    }
+    pintarSesion();
+    pintarEstado();
   });
 
   inicializar();

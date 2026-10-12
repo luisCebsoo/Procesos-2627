@@ -74,6 +74,15 @@ const Com = {
     }
   },
 
+  // Solo-admin (PBI-6): el servidor decide; aquí solo se pide y muestra.
+  listarUsuarios() {
+    return this.pedir("GET", "/api/users", undefined, true);
+  },
+
+  borrarUsuario(email) {
+    return this.pedir("DELETE", "/api/users/" + encodeURIComponent(email), undefined, true);
+  },
+
   limpiarSesion() {
     localStorage.removeItem(this.CLAVE_SESION);
   },
