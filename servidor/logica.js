@@ -12,7 +12,7 @@
  *
  * Códigos de error de dominio:
  *   VALIDACION | DUPLICADO | ELIMINADO | NO_ENCONTRADO |
- *   CREDENCIALES | PENDIENTE
+ *   CREDENCIALES | PENDIENTE | PROHIBIDO
  */
 const bcrypt = require("bcryptjs");
 const { randomUUID } = require("crypto");
@@ -148,6 +148,7 @@ class Logica {
 
   /**
    * Listado: solo expone email, rol y estado (nunca hash ni internos).
+   * Sin solicitante (compat PBI-2). Con roles: usar listarComo().
    */
   listar() {
     return this.datos.listarUsuarios().map((u) => ({
@@ -155,6 +156,92 @@ class Logica {
       rol: u.rol,
       estado: u.estado,
     }));
+  }
+
+  /**
+   * Roles (PBI-6): ¿es administrador activo? Lectura fresca desde datos
+   * (el rol puede haber cambiado tras emitir la sesión).
+   */
+  esAdmin(email) {
+    const u = this.datos.buscarPorEmail(this.normalizarEmail(email));
+    return !!u && u.rol === "admin" && u.estado === "activo";
+  }
+
+  /**
+   * Exige rol admin al solicitante. Desconocido o sin rol -> PROHIBIDO
+   * (no se distingue, para no enumerar quién existe).
+   */
+  exigirAdmin(solicitante) {
+    if (!this.esAdmin(solicitante)) {
+      throw fallo("PROHIBIDO", "requiere rol administrador");
+    }
+  }
+
+  /**
+   * Listado solo-admin (PBI-6). La API lo protege además con middleware.
+   */
+  listarComo(solicitante) {
+    this.exigirAdmin(solicitante);
+    return this.listar();
+  }
+
+  /**
+   * Consulta de activo solo-admin (PBI-6).
+   */
+  consultarActivoComo(solicitante, email) {
+    this.exigirAdmin(solicitante);
+    return this.isActive(email);
+  }
+
+  /**
+   * Borrado con reparto de permisos (PBI-6, validado en servidor):
+   * admin -> cualquiera; usuario estándar -> solo su propia cuenta.
+   */
+  eliminarComo(solicitante, objetivo) {
+    const yo = this.normalizarEmail(solicitante);
+    const otro = this.normalizarEmail(objetivo);
+    if (yo !== otro) {
+      this.exigirAdmin(yo);
+    } else if (!this.datos.buscarPorEmail(yo)) {
+      throw fallo("PROHIBIDO", "requiere rol administrador");
+    }
+    return this.eliminar(otro);
+  }
+
+  /**
+   * Seed del primer admin (PBI-6): con ADMIN_EMAIL/ADMIN_PASSWORD del
+   * entorno. Si existe, lo asciende a admin activo (conserva su hash);
+   * si no, lo crea activo con la contraseña dada. La justificación y
+   * las variables están documentadas en README (sin secretos en código).
+   */
+  inicializarAdmin(email, password) {
+    const normalizado = this.normalizarEmail(email);
+    if (!EMAIL_RE.test(normalizado)) {
+      throw fallo("VALIDACION", "email de admin inválido");
+    }
+    if (this.datos.fueEliminado(normalizado)) {
+      throw fallo("ELIMINADO", "cuenta eliminada: no puede volver a entrar");
+    }
+    const existente = this.datos.buscarPorEmail(normalizado);
+    if (existente) {
+      existente.rol = "admin";
+      existente.estado = "activo";
+      this.datos.guardarUsuario(existente);
+      return this.vista(existente);
+    }
+    if (typeof password !== "string" || password.length < MIN_PASSWORD) {
+      throw fallo("VALIDACION", `la contraseña necesita ${MIN_PASSWORD} caracteres mínimo`);
+    }
+    const admin = {
+      email: normalizado,
+      nombre: null,
+      hash: bcrypt.hashSync(password, this.costeHash),
+      rol: "admin",
+      estado: "activo",
+      creadoEn: new Date().toISOString(),
+    };
+    this.datos.guardarUsuario(admin);
+    return this.vista(admin);
   }
 
   /**
