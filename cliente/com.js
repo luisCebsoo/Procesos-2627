@@ -43,8 +43,13 @@ const Com = {
 
   async login(email, password) {
     const sesion = await this.pedir("POST", "/api/auth/login", { email, password });
-    localStorage.setItem(this.CLAVE_SESION, JSON.stringify(sesion));
+    this.guardarSesion(sesion);
     return sesion;
+  },
+
+  // Guarda una sesión ya creada (login local o vuelta de OAuth).
+  guardarSesion(sesion) {
+    localStorage.setItem(this.CLAVE_SESION, JSON.stringify(sesion));
   },
 
   // Revalida la sesión guardada contra el servidor (F5).
