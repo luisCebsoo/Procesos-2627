@@ -17,6 +17,7 @@ const ESTADO_POR_CODIGO = {
   VALIDACION: 400,
   CREDENCIALES: 401,
   PENDIENTE: 403,
+  PROHIBIDO: 403,
   ELIMINADO: 403,
   DUPLICADO: 409,
   NO_ENCONTRADO: 404,
@@ -53,6 +54,16 @@ function createApp(logica) {
       next();
     } catch (err) {
       enviarError(res, err);
+    }
+  };
+
+  // Middleware de rol (PBI-6): solo admin activo (lectura fresca).
+  const requerirAdmin = (req, res, next) => {
+    if (logica.esAdmin(req.usuario.email)) {
+      next();
+    } else {
+      log("warn", "acceso denegado: requiere admin", { email: req.usuario.email, ruta: req.path });
+      enviarError(res, Object.assign(new Error("requiere rol administrador"), { code: "PROHIBIDO" }));
     }
   };
 
@@ -116,25 +127,28 @@ function createApp(logica) {
     res.json({ ok: true });
   });
 
-  // Rutas de administración / consulta protegidas (PBI-4 / PBI-6)
-  app.get("/api/users", requerirAuth, (req, res) => {
-    res.json(logica.listar());
+  // Listado solo-admin (PBI-6): 200 | 401 sin sesión | 403 sin rol
+  app.get("/api/users", requerirAuth, requerirAdmin, (req, res) => {
+    res.json(logica.listarComo(req.usuario.email));
   });
 
-  app.get("/api/users/:email/active", requerirAuth, (req, res) => {
+  // Consulta de activo solo-admin (PBI-6): 200 | 401 | 403 | 404
+  app.get("/api/users/:email/active", requerirAuth, requerirAdmin, (req, res) => {
     try {
       const email = logica.normalizarEmail(req.params.email);
-      res.json({ email, active: logica.isActive(email) });
+      res.json({ email, active: logica.consultarActivoComo(req.usuario.email, email) });
     } catch (err) {
       enviarError(res, err);
     }
   });
 
+  // Borrado con permisos (PBI-6): admin->cualquiera, usuario->solo sí mismo.
+  // -> 200 | 401 | 403 | 404
   app.delete("/api/users/:email", requerirAuth, (req, res) => {
     try {
       const email = logica.normalizarEmail(req.params.email);
-      const resultado = logica.eliminar(email);
-      log("info", "borrado usuario", { email });
+      const resultado = logica.eliminarComo(req.usuario.email, email);
+      log("info", "borrado usuario", { email, por: req.usuario.email });
       res.json(resultado);
     } catch (err) {
       enviarError(res, err);
@@ -161,16 +175,33 @@ if (require.main === module) {
   const app = createApp(logica);
   // PBI-5: la URI sale del entorno, nunca del código. Sin ella,
   // modo memoria (útil en local/CI); con ella, MongoDB persistente.
+  // PBI-6: seed del primer admin por entorno (si hay ADMIN_EMAIL).
   datos
     .conectarDB(process.env.MONGODB_URI)
     .then((conectado) => {
       log("info", "persistencia lista", { modo: conectado ? "mongodb" : "memoria" });
+      inicializarAdminDesdeEntorno(logica);
       app.listen(PORT, () => log("info", "servidor arrancado", { port: PORT }));
     })
     .catch((err) => {
       log("error", "no se pudo conectar a MongoDB", { detalle: err.message });
       process.exit(1);
     });
+}
+
+function inicializarAdminDesdeEntorno(logica) {
+  const email = (process.env.ADMIN_EMAIL || "").trim();
+  if (!email) {
+    return false;
+  }
+  try {
+    const admin = logica.inicializarAdmin(email, process.env.ADMIN_PASSWORD);
+    log("info", "admin inicializado", { email: admin.email });
+    return true;
+  } catch (err) {
+    log("error", "no se pudo inicializar el admin", { detalle: err.message });
+    return false;
+  }
 }
 
 module.exports = { createApp };
