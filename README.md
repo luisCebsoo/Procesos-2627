@@ -1,6 +1,23 @@
 # Procesos-2627
 
-SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios en memoria. PBI-3 (Hito 2): registro y login locales con hash y sesión. PBI-4: sesión persistente, logout y rutas protegidas. PBI-5 (Hito 3): persistencia MongoDB y secretos fuera del código. PBI-6: roles y administración (listar/consultar solo admin; borrado admin→cualquiera, usuario→solo sí mismo; seed del primer admin por entorno; logs). PBI-7 (Hito 4): confirmación por email con enlace único (pendiente→activo).
+SaaS base. PBI-1: repositorio con GitHub Flow, CI en cada PR/push a `main` y CD automático a URL pública. PBI-2: gestión básica de usuarios en memoria. PBI-3 (Hito 2): registro y login locales con hash y sesión. PBI-4: sesión persistente, logout y rutas protegidas. PBI-5 (Hito 3): persistencia MongoDB y secretos fuera del código. PBI-6: roles y administración (listar/consultar solo admin; borrado admin→cualquiera, usuario→solo sí mismo; seed del primer admin por entorno; logs). PBI-7 (Hito 4): confirmación por email con enlace único (pendiente→activo). PBI-8: login con GitHub (OAuth) con alta directa en activo y sesión válida.
+
+## Login con GitHub (PBI-8)
+| Ruta | Respuestas |
+|---|---|
+| `GET /api/auth/oauth/github` | `302` a GitHub · `501` sin credenciales |
+| `GET /api/auth/oauth/github/callback?code=…` | `302 /?token=…&email=…` (activo + sesión) · `302 /?oauth_error=…` si falla |
+
+Flujo: el botón lleva a GitHub, autorizas, GitHub devuelve un `code` a nuestro callback (la URL debe estar registrada exacta), lo canjeamos por tu email verificado y entras directo como `activo` (el proveedor ya verificó el email: sin enlace de confirmación). Si ya existías (incluso pendiente), se activa y conserva tu rol; si estabas eliminado, no entras. Sin `GITHUB_*` el botón da 501 honesto en vez de redirigir a roto.
+```sh
+# GitHub > Settings > Developer settings > OAuth Apps > New:
+#   Homepage URL: http://localhost:3000  (y luego la de Render)
+#   Callback URL: http://localhost:3000/api/auth/oauth/github/callback
+# Añade ADEMÁS la de Render: https://TU-APP.onrender.com/api/auth/oauth/github/callback
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...   # solo en .env / Render Environment, jamás en el repo
+GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/oauth/github/callback
+```
 
 ## Confirmación por email (PBI-7)
 | Método | Ruta | Respuestas |
@@ -82,7 +99,7 @@ npm start
 ```sh
 npm test
 ```
-PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). PBI-6 añade 6 de roles en lógica y 3 de control de rol en endpoints. PBI-7 añade 6 de verificación y 4 de email/activación (con stub, cero SMTP real). Total: 59 tests.
+PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). PBI-6 añade 6 de roles en lógica y 3 de control de rol en endpoints. PBI-7 añade 6 de verificación y 4 de email/activación (con stub, cero SMTP real). PBI-8 añade 6 de login externo y 4 de flujo OAuth (con stub, cero red). Total: 69 tests.
 
 ## Variables de entorno
 | Nombre | Uso |
