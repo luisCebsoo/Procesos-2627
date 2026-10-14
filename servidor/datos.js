@@ -25,6 +25,8 @@ class Datos {
     // null = modo memoria (sin Mongo).
     this.db = null;
     this._client = null;
+    // Escrituras en vuelo hacia Mongo (para poder esperarlas al cerrar).
+    this._vuelos = new Set();
   }
 
   /**
@@ -79,24 +81,35 @@ class Datos {
   }
 
   // Escritura en diferido: refleja en Mongo sin bloquear a la lógica.
+  // Se registran en vuelo para que sincronizar() pueda esperarlas.
+  diferido(promesa, coleccion) {
+    if (!this.db) {
+      return;
+    }
+    const registrada = promesa.catch((err) =>
+      console.error(JSON.stringify({ level: "error", msg: "fallo persistencia", coleccion, detalle: err.message }))
+    );
+    this._vuelos.add(registrada);
+    registrada.finally(() => this._vuelos.delete(registrada));
+  }
+
+  // Espera a que terminen las escrituras pendientes (antes de cerrar).
+  async sincronizar() {
+    await Promise.allSettled([...this._vuelos]);
+  }
+
   persistir(coleccion, filtro, doc) {
     if (!this.db) {
       return;
     }
-    this.db
-      .collection(coleccion)
-      .replaceOne(filtro, doc, { upsert: true })
-      .catch((err) => console.error(JSON.stringify({ level: "error", msg: "fallo persistencia", coleccion, detalle: err.message })));
+    this.diferido(this.db.collection(coleccion).replaceOne(filtro, doc, { upsert: true }), coleccion);
   }
 
   borrarDe(coleccion, filtro) {
     if (!this.db) {
       return;
     }
-    this.db
-      .collection(coleccion)
-      .deleteOne(filtro)
-      .catch((err) => console.error(JSON.stringify({ level: "error", msg: "fallo borrado", coleccion, detalle: err.message })));
+    this.diferido(this.db.collection(coleccion).deleteOne(filtro), coleccion);
   }
 
   guardarUsuario(usuario) {

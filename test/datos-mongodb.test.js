@@ -100,6 +100,24 @@ describe("PBI-5: persistencia MongoDB con stubs", () => {
     assert.equal(datos.db, null);
   });
 
+  it("sincronizar() espera las escrituras en vuelo antes de cerrar", async () => {
+    let resuelta = false;
+    const mongoLento = {
+      collection: () => ({
+        replaceOne: async () => {
+          await new Promise((r) => setTimeout(r, 20));
+          resuelta = true;
+          return { acknowledged: true };
+        },
+      }),
+    };
+    const datos = new Datos();
+    datos.usarBD(mongoLento);
+    datos.guardarUsuario({ email: "a@b.com" });
+    await datos.sincronizar();
+    assert.equal(resuelta, true);
+  });
+
   it("logica funciona idéntica sobre el stub: la interfaz no cambió", async () => {
     const mongo = crearMongoFalso({
       usuarios: [{ _id: "x", email: "vieja@ejemplo.com", hash: "h", rol: "usuario", estado: "activo" }],
