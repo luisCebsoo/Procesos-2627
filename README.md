@@ -99,7 +99,7 @@ npm start
 ```sh
 npm test
 ```
-PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). PBI-6 añade 6 de roles en lógica y 3 de control de rol en endpoints. PBI-7 añade 6 de verificación y 4 de email/activación (con stub, cero SMTP real). PBI-8 añade 6 de login externo y 4 de flujo OAuth (con stub, cero red). Total: 69 tests.
+PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). PBI-6 añade 6 de roles en lógica y 3 de control de rol en endpoints. PBI-7 añade 6 de verificación y 4 de email/activación (con stub, cero SMTP real). PBI-8 añade 6 de login externo y 4 de flujo OAuth (con stub, cero red). Seed de admin: 3 tests (crear, idempotencia, ascenso). Total: 73 tests.
 
 ## Variables de entorno
 | Nombre | Uso |
@@ -112,7 +112,10 @@ PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logi
 Ver `.env.example` (solo nombres, nunca valores secretos).
 
 ## Acceso como admin
-Mecanismo seed por entorno (PBI-6, justificado: explícito, sin secretos en código, funciona igual en local y Render): define `ADMIN_EMAIL` (+ `ADMIN_PASSWORD` si aún no existe) y arranca. Desde PBI-3 hay registro/login locales: el alta es `pendiente` y solo entra al estar `activo`.
+```sh
+npm run seed:admin   # crea o actualiza admin@procesos.com (rol admin, activo)
+```
+El script es idempotente: si no existe lo crea con la contraseña de `ADMIN_PASSWORD` (o la de demostración); si existe, fija rol/estado y regenera el hash si no coincide, y verifica que el login devuelva `rol: "admin"`. En producción define `ADMIN_EMAIL/ADMIN_PASSWORD` en el entorno (Render > Environment). Desde PBI-3 hay registro/login locales: el alta es `pendiente` y solo entra al estar `activo`.
 
 ## CI/CD
 - **CI**: workflow `CI` en `.github/workflows/ci.yml` (push a `main` + PRs hacia `main`): `npm ci` + `npm test`. No mergear en rojo.

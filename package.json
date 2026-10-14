@@ -5,7 +5,8 @@
   "main": "servidor/api.js",
   "scripts": {
     "start": "node servidor/api.js",
-    "test": "node --test test/esqueleto.test.js test/logica.test.js test/usuarios-api.test.js test/auth.test.js test/auth-api.test.js test/sesion.test.js test/datos-mongodb.test.js test/roles.test.js test/roles-api.test.js test/verificacion.test.js test/verificacion-api.test.js test/oauth.test.js test/oauth-api.test.js"
+    "seed:admin": "node servidor/seed-admin.js",
+    "test": "node --test test/esqueleto.test.js test/logica.test.js test/usuarios-api.test.js test/auth.test.js test/auth-api.test.js test/sesion.test.js test/datos-mongodb.test.js test/roles.test.js test/roles-api.test.js test/verificacion.test.js test/verificacion-api.test.js test/oauth.test.js test/oauth-api.test.js test/seed-admin.test.js"
   },
   "engines": {
     "node": ">=20"
