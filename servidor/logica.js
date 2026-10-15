@@ -379,6 +379,39 @@ class Logica {
   vista(u) {
     return { email: u.email, nombre: u.nombre, rol: u.rol, estado: u.estado };
   }
+
+  /**
+   * [VARIANTE-5] Decide si un actor puede eliminar a un objetivo.
+   * Función pura: no accede a la base de datos. Las reglas se aplican
+   * en orden:
+   *  1. Un actor "usuario" solo puede eliminarse a sí mismo; si no → NO_AUTORIZADO.
+   *  2. No se puede eliminar a un admin si es el último (administradores ≤ 1) → ULTIMO_ADMIN.
+   *  3. En cualquier otro caso está permitido → motivo null.
+   *
+   * @param {{ id: string, rol: string }} actor
+   * @param {{ id: string, rol: string }} objetivo
+   * @param {number} administradores
+   * @returns {{ permitido: boolean, motivo: string|null }}
+   */
+  static decidirEliminar(actor, objetivo, administradores) {
+    const ROLES_VALIDOS = ["usuario", "admin"];
+    if (!ROLES_VALIDOS.includes(actor.rol) || !ROLES_VALIDOS.includes(objetivo.rol)) {
+      return { error: "rol desconocido" };
+    }
+
+    // Regla 1: usuario solo puede eliminarse a sí mismo.
+    if (actor.rol === "usuario" && actor.id !== objetivo.id) {
+      return { permitido: false, motivo: "NO_AUTORIZADO" };
+    }
+
+    // Regla 2: no se puede eliminar a un admin si es el último.
+    if (objetivo.rol === "admin" && administradores <= 1) {
+      return { permitido: false, motivo: "ULTIMO_ADMIN" };
+    }
+
+    // Regla 3: permitido.
+    return { permitido: true, motivo: null };
+  }
 }
 
 module.exports = Logica;
