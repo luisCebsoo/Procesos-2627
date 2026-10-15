@@ -241,6 +241,36 @@ function createApp(logica, opts = {}) {
     }
   });
 
+  // [VARIANTE-5] POST /api/prueba/eliminar (público, sin sesión).
+  // Valida la petición, llama a la lógica pura y devuelve la decisión.
+  app.post("/api/prueba/eliminar", (req, res) => {
+    const cuerpo = req.body || {};
+    const { actor, objetivo, administradores } = cuerpo;
+
+    // Validación de datos ausentes o de tipo incorrecto.
+    if (
+      !actor || typeof actor !== "object" ||
+      !objetivo || typeof objetivo !== "object" ||
+      typeof actor.id !== "string" || !actor.id ||
+      typeof actor.rol !== "string" ||
+      typeof objetivo.id !== "string" || !objetivo.id ||
+      typeof objetivo.rol !== "string" ||
+      typeof administradores !== "number" || !Number.isInteger(administradores)
+    ) {
+      res.status(400).json({ error: "datos ausentes o de tipo incorrecto" });
+      return;
+    }
+
+    const resultado = Logica.decidirEliminar(actor, objetivo, administradores);
+
+    if (resultado.error) {
+      res.status(400).json({ error: resultado.error });
+      return;
+    }
+
+    res.json({ permitido: resultado.permitido, motivo: resultado.motivo });
+  });
+
   // Rutas /api desconocidas -> 404 JSON (último: no tapa a las rutas reales).
   app.use("/api", (req, res) => {
     res.status(404).json({ error: "ruta no encontrada" });
