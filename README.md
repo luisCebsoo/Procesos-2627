@@ -25,7 +25,13 @@ GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/oauth/github/callback
 | `GET` | `/api/auth/verificar/:token` | `200` cuenta activada · `404` falso/usado |
 | `POST` | `/api/auth/reenviar` `{ email }` | `200` nuevo enlace · `400` ya activa/inexistente |
 
-Flujo: registrarse genera un token único y envía `APP_URL/verificar.html?token=…` con el servicio SMTP de las variables (`SMTP_HOST/PORT/USER/PASS/FROM`, p. ej. Brevo; en Render free el SMTP directo está bloqueado y hay que mirar el spam). Sin SMTP no se toca la red: el enlace sale por el log (modo desarrollo/CI). Si el correo falla, el registro sigue devolviendo 201 y se deja log (el enlace se puede reenviar). El token es de un solo uso y no distingue falso de usado (`404` idéntico).
+Flujo: registrarse genera un token único y envía `APP_URL/verificar.html?token=…` con el servicio SMTP de las variables (`SMTP_HOST/PORT/USER/PASS/FROM`, p. ej. Brevo o Gmail App Password; en Render free el SMTP directo está bloqueado y hay que usar servicio externo). Sin SMTP no se toca la red: el enlace sale por el log (modo desarrollo/CI). Si el correo falla, el registro sigue devolviendo 201 y se deja log (el enlace se puede reenviar). El token es de un solo uso y no distingue falso de usado (`404` idéntico).
+
+Para verificar la conexión y el envío SMTP en local:
+```sh
+npm run probar:smtp                  # verifica credenciales y conectividad con el servidor SMTP
+node scripts/probar-smtp.js tu@email.com  # envía un email de prueba real
+```
 
 ## Persistencia MongoDB (PBI-5)
 `servidor/datos.js` mantiene su interfaz síncrona intacta (`logica.js` no cambió): lee siempre de caché en memoria y, si hay `MONGODB_URI`, refleja cada escritura en Mongo en diferido (colecciones `usuarios`, `eliminados`, `sesiones`; `upsert` por email/token). Al arrancar, `conectarDB()` hidrata la caché: los datos sobreviven al reinicio. Sin `MONGODB_URI` → modo memoria (tests y CI, sin red).
@@ -80,6 +86,7 @@ Alcance honesto: sin contraseñas (llegaron con hash en PBI-3, nunca en plano) y
 - **JS vanilla en cliente (com.js + app.js + index.html)**: sin bundler para mantener visible la frontera GUI/controlador vs comunicación.
 - **node:test + assert (built-in)**: framework de tests sin dependencias extra; `npm test` corre todo con un solo comando.
 - **bcryptjs (bcrypt, coste 10)**: hash irreversible de contraseñas sin compilación nativa (seguro en CI y Render free).
+- **nodemailer**: envío transaccional de correos SMTP para activación de cuentas.
 - **GitHub Actions**: CI que ejecuta los tests en cada PR y push a `main` (ver `.github/workflows/ci.yml`).
 - **Render (plan free, `render.yaml`)**: CD con Auto-Deploy desde `main` a URL pública.
 
@@ -99,15 +106,23 @@ npm start
 ```sh
 npm test
 ```
-PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). PBI-6 añade 6 de roles en lógica y 3 de control de rol en endpoints. PBI-7 añade 6 de verificación y 4 de email/activación (con stub, cero SMTP real). PBI-8 añade 6 de login externo y 4 de flujo OAuth (con stub, cero red). Seed de admin: 3 tests (crear, idempotencia, ascenso). Total: 73 tests.
+PBI-1 incluye smoke tests del esqueleto; PBI-2 añade 8 tests unitarios de `logica.js` y 6 de `/api/users` (incluido 401 sin token). PBI-3 añade 7 de registro/login y 3 de `/api/auth/*`. PBI-4 añade 6 de sesión (revalidación, logout, ciclo HTTP, 401). PBI-5 añade 6 de persistencia con stubs (sin BBDD real). PBI-6 añade 6 de roles en lógica y 3 de control de rol en endpoints. PBI-7 añade 6 de verificación, 4 de email/activación en API y 3 unitarios del adaptador SMTP (con stubs y modo simulado, cero red). PBI-8 añade 6 de login externo y 4 de flujo OAuth (con stub, cero red). Seed de admin: 3 tests (crear, idempotencia, ascenso). Variante técnica 5: 12 tests. Total: 88 tests automatizados.
 
 ## Variables de entorno
 | Nombre | Uso |
 |---|---|
-| `PORT` | Puerto de escucha (en Render lo inyecta la plataforma) |
+| `PORT` | Puerto de escucha (3000 por defecto; en Render lo inyecta la plataforma) |
 | `BCRYPT_COST` | Coste del hash bcrypt (10 por defecto; tests usan 4) |
 | `MONGODB_URI` | URI de MongoDB. Vacía = modo memoria. En local va en `.env` (jamás commiteado); en Render, en Dashboard > Environment |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Seed del primer admin al arrancar (se crea activo o se asciende). Solo nombres en `.env.example`; valores reales aparte, nunca en el repo |
+| `APP_URL` | Base pública de la aplicación para enlaces de verificación (ej. `http://localhost:3000` o URL en Render) |
+| `SMTP_HOST` | Host del servidor SMTP transaccional (ej. `smtp-relay.brevo.com` o `smtp.gmail.com`) |
+| `SMTP_PORT` | Puerto SMTP (ej. 587 para STARTTLS o 465 para SSL) |
+| `SMTP_USER` | Usuario/cuenta de autenticación SMTP |
+| `SMTP_PASS` | Contraseña SMTP o clave de aplicación/API transaccional |
+| `SMTP_FROM` | Dirección del remitente (ej. `soporte@tudominio.com` o verified sender en Brevo) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Credenciales de OAuth App en GitHub (PBI-8) |
+| `GITHUB_CALLBACK_URL` | Callback OAuth exacto registrado en GitHub |
 
 Ver `.env.example` (solo nombres, nunca valores secretos).
 
