@@ -23,19 +23,19 @@ describe("V2.0: Catálogo y Descubrir Café en Logica", () => {
     logica = new Logica(datos, { costeHash: 4 });
   });
 
-  it("filtrarCatalogo: sin criterios retorna los 8 cafés curados", () => {
+  it("filtrarCatalogo: sin criterios retorna los 18 cafés curados", () => {
     const todos = logica.filtrarCatalogo();
-    assert.equal(todos.length, 8);
+    assert.equal(todos.length, 18);
     assert.ok(todos.every((c) => c.id && c.nombre && c.puntuacionSca >= 80));
   });
 
   it("filtrarCatalogo: filtra por cafeína (normal vs descafeinado)", () => {
     const descafeinados = logica.filtrarCatalogo({ cafeina: "descafeinado" });
-    assert.equal(descafeinados.length, 1);
-    assert.equal(descafeinados[0].id, "colombia-huila-decaf");
+    assert.equal(descafeinados.length, 2);
+    assert.ok(descafeinados.some((c) => c.id === "colombia-huila-decaf"));
 
     const normales = logica.filtrarCatalogo({ cafeina: "normal" });
-    assert.equal(normales.length, 7);
+    assert.equal(normales.length, 16);
   });
 
   it("filtrarCatalogo: filtra por tipoConsumo (solo, con_leche, frio)", () => {
@@ -68,8 +68,8 @@ describe("V2.0: Catálogo y Descubrir Café en Logica", () => {
 
   it("filtrarCatalogo: búsqueda por texto libre en notas, origen o nombre", () => {
     const buscaJazmin = logica.filtrarCatalogo({ buscar: "jazmín" });
-    assert.equal(buscaJazmin.length, 1);
-    assert.equal(buscaJazmin[0].id, "etiopia-yirgacheffe");
+    assert.equal(buscaJazmin.length, 2);
+    assert.ok(buscaJazmin.some((c) => c.id === "etiopia-yirgacheffe"));
 
     const buscaBrasil = logica.filtrarCatalogo({ buscar: "brasil" });
     assert.equal(buscaBrasil.length, 1);
@@ -87,9 +87,9 @@ describe("V2.0: Catálogo y Descubrir Café en Logica", () => {
     );
 
     // Importación exitosa
-    const bolsa = logica.importarCafeADespensa("barista@ejemplo.com", "colombia-huila-fresa", 250);
+    const bolsa = logica.importarCafeADespensa("barista@ejemplo.com", "colombia-huila-santa-barbara", 250);
     assert.ok(bolsa.id);
-    assert.equal(bolsa.nombre, "Colombia Huila Finca La Fresa");
+    assert.equal(bolsa.nombre, "Colombia Huila Santa Bárbara");
     assert.equal(bolsa.gramosIniciales, 250);
     assert.equal(bolsa.gramosRestantes, 250);
     assert.equal(bolsa.usuarioEmail, "barista@ejemplo.com");
@@ -205,8 +205,8 @@ describe("V2.0: Endpoints API Catálogo y Consumo", () => {
     const res = await fetch(`${baseUrl}/api/catalogo/descubrir?cafeina=descafeinado`);
     assert.equal(res.status, 200);
     const cafes = await res.json();
-    assert.equal(cafes.length, 1);
-    assert.equal(cafes[0].id, "colombia-huila-decaf");
+    assert.equal(cafes.length, 2);
+    assert.ok(cafes.some((c) => c.id === "colombia-huila-decaf"));
   });
 
   it("POST /api/catalogo/:id/importar crea la bolsa y devuelve 201", async () => {
