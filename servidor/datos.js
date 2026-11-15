@@ -347,9 +347,9 @@ const RECETAS_MAESTRAS = [
     puntuacion: 5,
     esPublica: true,
     esMaestra: true,
-    autor: "INEI Italia",
+    autor: "Istituto Espresso Italiano (IEI)",
     usuarioEmail: "espresso.certificato@brewlab.pro",
-    urlExterna: "http://www.espressoitaliano.org/en/The-Certified-Italian-Espresso.html",
+    urlExterna: "https://iei.coffee/",
     creadaEn: "2024-01-01T10:15:00.000Z",
   },
   {
