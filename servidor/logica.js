@@ -15,7 +15,7 @@
  *   CREDENCIALES | PENDIENTE | PROHIBIDO | STOCK_INSUFICIENTE
  */
 const bcrypt = require("bcryptjs");
-const { randomUUID } = require("crypto");
+const { randomUUID, randomBytes } = require("crypto");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 8;
@@ -303,6 +303,29 @@ class Logica {
     u.estado = "activo";
     this.datos.guardarUsuario(u);
     return this.vista(u);
+  }
+
+  /**
+   * Cambia la sesión recién creada por un código temporal de un solo
+   * uso, para no exponer el token en la URL del callback OAuth.
+   */
+  crearCodigoOAuth(sesion, ttlMs = 60000) {
+    const codigo = randomBytes(32).toString("hex");
+    this.datos.guardarCodigoOAuth(codigo, { sesion, expira: Date.now() + ttlMs });
+    return codigo;
+  }
+
+  /**
+   * Canjea el código por { token, usuario }. Se consume siempre al
+   * leerlo; si no existe, ya se usó o caducó -> 404.
+   */
+  canjearCodigoOAuth(codigo) {
+    const registro =
+      typeof codigo === "string" && codigo ? this.datos.consumirCodigoOAuth(codigo) : null;
+    if (!registro || registro.expira < Date.now()) {
+      throw fallo("NO_ENCONTRADO", "código inválido o expirado");
+    }
+    return registro.sesion;
   }
 
   /**

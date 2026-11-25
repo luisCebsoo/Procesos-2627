@@ -260,6 +260,8 @@ class Datos {
     this.sesiones = new Map();
     // Verificaciones de email (PBI-7): token de un solo uso -> email.
     this.verificaciones = new Map();
+    // Códigos OAuth de un solo uso (solo memoria, caducan en segundos): código -> { sesion, expira }.
+    this.codigosOAuth = new Map();
     // Bolsas de café (PBI-9): id -> bolsa.
     this.bolsas = new Map();
     // Diario de extracciones (PBI-10): id -> extracción.
@@ -423,6 +425,19 @@ class Datos {
     const ok = this.verificaciones.delete(token);
     this.borrarDe("verificaciones", { token });
     return ok;
+  }
+
+  // — Códigos OAuth de un solo uso —
+
+  guardarCodigoOAuth(codigo, registro) {
+    this.codigosOAuth.set(codigo, registro);
+  }
+
+  // Devuelve el registro y lo borra: solo se puede leer una vez.
+  consumirCodigoOAuth(codigo) {
+    const registro = this.codigosOAuth.get(codigo) || null;
+    this.codigosOAuth.delete(codigo);
+    return registro;
   }
 
   // — Bolsas de café (PBI-9) —

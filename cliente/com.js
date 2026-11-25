@@ -47,6 +47,13 @@ const Com = {
     return sesion;
   },
 
+  // Canjea el código de un solo uso del callback OAuth por la sesión.
+  async canjearCodigoOAuth(codigo) {
+    const sesion = await this.pedir("POST", "/api/auth/oauth/canjear", { codigo });
+    this.guardarSesion(sesion);
+    return sesion;
+  },
+
   // Guarda una sesión ya creada (login local o vuelta de OAuth).
   guardarSesion(sesion) {
     localStorage.setItem(this.CLAVE_SESION, JSON.stringify(sesion));

@@ -956,17 +956,19 @@
       });
     }
 
-    // Recoger token de OAuth si volvemos de GitHub (?token=...)
+    // Recoger el código de un solo uso si volvemos de GitHub (?oauth_code=...)
     const params = new URLSearchParams(window.location.search);
     if (params.get("oauth_error")) {
       mostrarMsg("log-msg", "Error de autenticación con GitHub: " + params.get("oauth_error"), true);
     }
-    if (params.get("token")) {
-      Com.guardarSesion({
-        token: params.get("token"),
-        usuario: { email: params.get("email") || "", rol: "usuario", estado: "activo" },
-      });
-      window.history.replaceState({}, "", window.location.pathname);
+    if (params.get("oauth_code")) {
+      const codigo = params.get("oauth_code");
+      window.history.replaceState({}, "", window.location.pathname); // limpiar la URL ya
+      try {
+        await Com.canjearCodigoOAuth(codigo);
+      } catch {
+        mostrarMsg("log-msg", "Error de autenticación con GitHub: código inválido o expirado", true);
+      }
     }
 
     // Revalidación de sesión guardada

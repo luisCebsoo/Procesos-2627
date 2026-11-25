@@ -175,8 +175,9 @@ function createApp(logica, opts = {}) {
   });
 
   // Callback OAuth (PBI-8): GitHub devuelve ?code=. Se canjea por el
-  // perfil, se entra directo como activo y se redirige con el token.
-  // -> 302 /?token=... | 302 /?oauth_error=... | 501 sin credenciales
+  // perfil, se entra directo como activo y se redirige con un código
+  // temporal de un solo uso (nunca el token en la URL).
+  // -> 302 /?oauth_code=... | 302 /?oauth_error=... | 501 sin credenciales
   app.get("/api/auth/oauth/github/callback", (req, res) => {
     if (!oauth.configurado) {
       res.status(501).json({ error: "login externo no configurado" });
@@ -188,8 +189,7 @@ function createApp(logica, opts = {}) {
         const sesion = logica.loginExterno(email, nombre, "github");
         log("info", "login externo", { email: sesion.usuario.email, proveedor: "github" });
         const destino = new URL(baseUrl + "/");
-        destino.searchParams.set("token", sesion.token);
-        destino.searchParams.set("email", sesion.usuario.email);
+        destino.searchParams.set("oauth_code", logica.crearCodigoOAuth(sesion));
         res.redirect(destino.toString());
       })
       .catch((err) => {
@@ -198,6 +198,16 @@ function createApp(logica, opts = {}) {
         destino.searchParams.set("oauth_error", err.code || "codigo_invalido");
         res.redirect(destino.toString());
       });
+  });
+
+  // Canje del código OAuth: POST /api/auth/oauth/canjear { codigo }
+  // -> 200 { token, usuario } | 404 código inválido, usado o caducado
+  app.post("/api/auth/oauth/canjear", (req, res) => {
+    try {
+      res.json(logica.canjearCodigoOAuth(req.body && req.body.codigo));
+    } catch (err) {
+      enviarError(res, err);
+    }
   });
 
   // Revalidación de sesión (PBI-4): GET /api/auth/me (protegido por token)
